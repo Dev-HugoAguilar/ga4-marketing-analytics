@@ -40,9 +40,11 @@ const DIMENSION_RETENCION = 'pais';
 
 export function Hallazgos({ apiBase }: PropsHallazgos) {
   const [estado, setEstado] = useState<EstadoHallazgos>(INICIAL);
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
     const control = new AbortController();
+    setEstado(INICIAL);
     const cliente = crearCliente(apiBase);
 
     const cargar = async () => {
@@ -69,43 +71,44 @@ export function Hallazgos({ apiBase }: PropsHallazgos) {
           });
         }
       } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
+        if (control.signal.aborted || (error as Error).name === 'AbortError') return;
         setEstado({
           ...INICIAL,
           cargando: false,
           error:
             'No se pudieron calcular los hallazgos: la API de marketing no respondió. ' +
-            'El tablero sigue funcionando con los datos ya publicados.',
+            'Vuelve a intentarlo cuando el servicio esté disponible.',
         });
       }
     };
 
     void cargar();
     return () => control.abort();
-  }, [apiBase]);
+  }, [apiBase, intento]);
 
   if (estado.cargando) {
-    return <p className="hallazgos-espera">Calculando hallazgos con los datos publicados…</p>;
+    return <p className="hallazgos-espera" data-state="loading" role="status" aria-busy="true">Calculando hallazgos con los datos publicados…</p>;
   }
 
   if (estado.error) {
     return (
-      <p className="hallazgos-espera" role="status" data-testid="hallazgos-error">
+      <p className="hallazgos-espera" role="alert" data-state="error" data-testid="hallazgos-error">
         {estado.error}
+        {' '}<button type="button" onClick={() => setIntento((n) => n + 1)}>Reintentar</button>
       </p>
     );
   }
 
   if (!estado.hallazgos.length) {
     return (
-      <p className="hallazgos-espera" role="status">
+      <p className="hallazgos-espera" data-state="empty" role="status">
         Todavía no hay cifras publicadas suficientes para redactar hallazgos.
       </p>
     );
   }
 
   return (
-    <>
+    <div data-state="ready">
       <p className="hallazgos-alcance" data-testid="hallazgos-alcance">
         {estado.alcance}
       </p>
@@ -115,6 +118,6 @@ export function Hallazgos({ apiBase }: PropsHallazgos) {
           <span className="hallazgos-nota">{hallazgo.nota}</span>
         </p>
       ))}
-    </>
+    </div>
   );
 }
